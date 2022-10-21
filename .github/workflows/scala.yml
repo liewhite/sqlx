@@ -28,12 +28,6 @@ jobs:
         GPG_KEY: ${{ secrets.GPG_KEY }}
       run: |
         echo -n "$GPG_KEY" | base64 --decode | gpg --import
-
-    - shell: bash
-      env:
-        SONA_CRE: ${{ secrets.SONA_CRE }}
-      run: |
-        echo "$SONA_CRE" > ~/.sbt/sonatype_credential 
         
     - uses: actions/checkout@v2
     - name: Set up JDK 11
