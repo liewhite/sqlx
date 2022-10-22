@@ -31,10 +31,10 @@ case class DBConfig(
     idleMills: Int = 60 * 1000)
 
 class QuillMysqlContext(dataSource: HikariDataSource)
-    extends MysqlJdbcContext(SnakeCase, dataSource)
-    with ExtSyntax[MySQLDialect, SnakeCase.type]
+    extends MysqlJdbcContext(Literal, dataSource)
+    with ExtSyntax[MySQLDialect, Literal.type]
     // migrator可以针对不同driver提供， 现在先用同一份
-    with Migrator[MySQLDialect, SnakeCase.type] {
+    with Migrator[MySQLDialect, Literal.type] {
   // 只能在子类中覆盖codec， 在其他 trait中覆盖会歧义
   implicit val bigIntDecoder: Decoder[BigInt] =
     decoder(row =>
@@ -78,9 +78,9 @@ class QuillMysqlContext(dataSource: HikariDataSource)
 }
 
 class QuillPostgresContext(dataSource: HikariDataSource)
-    extends PostgresJdbcContext(SnakeCase, dataSource)
-    with ExtSyntax[PostgresDialect, SnakeCase.type]
-    with Migrator[PostgresDialect, SnakeCase.type] {
+    extends PostgresJdbcContext(Literal, dataSource)
+    with ExtSyntax[PostgresDialect, Literal.type]
+    with Migrator[PostgresDialect, Literal.type] {
 
   override implicit val zonedDateTimeDecoder: Decoder[ZonedDateTime] =
     decoder(row =>

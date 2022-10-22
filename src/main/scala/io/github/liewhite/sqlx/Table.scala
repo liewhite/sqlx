@@ -38,8 +38,6 @@ object Table {
   inline given derived[A](using
       gen: Mirror.ProductOf[A],
       labelling: Labelling[A],
-      primaryKey: RepeatableAnnotations[annotation.Primary, A],
-      columnName: RepeatableAnnotations[annotation.ColumnName, A],
       index: RepeatableAnnotations[annotation.Index, A],
       unique: RepeatableAnnotations[annotation.Unique, A],
       length: RepeatableAnnotations[annotation.Length, A],
@@ -47,21 +45,9 @@ object Table {
   ): Table[A] = {
     val defaults = defaultValue.defaults
     val columnTypes = summonAll[TField, gen.MirroredElemTypes]
-    // snack case
-    val tName = toSnakeCase(labelling.label)
-    val fieldNames = labelling.elemLabels.toVector.map(toSnakeCase(_))
+    val tName =  labelling.label
+    val fieldNames = labelling.elemLabels.toVector
     val names = fieldNames
-    // val renames =
-    //   columnName().map(item => if (item.isEmpty) None else Some(item(0).name))
-    // val names = renames.zipWithIndex.map {
-    //   case (rename, index) => {
-    //     rename match {
-    //       case Some(v) => v
-    //       case None    => fieldNames(index)
-    //     }
-    //   }
-    // }
-    val primaries = primaryKey().map(item => if (item.isEmpty) false else true)
     val uniques = unique().map(item => if (item.isEmpty) false else true)
 
     val len = length().map(item => if (item.isEmpty) None else Some(item(0).l))
@@ -147,16 +133,4 @@ object Table {
       case e => report.error(e.show); ???
     }
   }
-  def toSnakeCase(s: String) =
-    (s.toList match {
-      case c :: tail => c.toLower +: snakeCase(tail)
-      case Nil       => Nil
-    }).mkString
-
-  def snakeCase(s: List[Char]): List[Char] =
-    s match {
-      case c :: tail if c.isUpper => List('_', c.toLower) ++ snakeCase(tail)
-      case c :: tail              => c +: snakeCase(tail)
-      case Nil                    => Nil
-    }
 }

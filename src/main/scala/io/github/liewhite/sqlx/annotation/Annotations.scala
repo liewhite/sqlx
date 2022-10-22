@@ -2,6 +2,7 @@ package io.github.liewhite.sqlx.annotation
 
 // name in db
 case class ColumnName(name:String) extends scala.annotation.StaticAnnotation
+case class TableName(name:String) extends scala.annotation.StaticAnnotation
 
 // primary key
 case class Primary() extends scala.annotation.StaticAnnotation

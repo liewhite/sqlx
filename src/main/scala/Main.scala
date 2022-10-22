@@ -18,18 +18,18 @@ object CustomField {
     given MappedEncoding[String, CustomField](CustomField(_))
 }
 
-case class T(
+case class TTT(
     @Unique // create unique constraint on table
     fId: Long,
 
-    // @Index("a-b"
+    @Index("a-b", unique = true)
     i:   BigInt,
 
     @Length(35)   // column length, works for type with length(like varchar), or ignore
-    @Index("a-b") // index with same name will create multi-column index
+    @Index("a-b", unique = true) // index with same name will create multi-column index
     s: String = "default in db", // this'll set default value in table
 
-    dt: ZonedDateTime,
+    dt: Long,
 
     @Length(35)
     os: Option[String], // nullable in table
@@ -51,14 +51,14 @@ case class T(
     import ctx._
 
     // auto mapping case class to db table
-    ctx.migrate[T]
+    ctx.migrate[TTT]
 
     // insert into table
-    // run(query[T].insertValue(lift(T(2,1,  "Bob", ZonedDateTime.now, None, CustomField("Alice")))))
+    run(query[TTT].insertValue(lift(TTT(2, 2,  "Bob", 1, None, CustomField("Alice")))))
 
     // query from table
     // val rows = run(query[T].filter(item => liftQuery(Vector(1,2,3)).contains( item.i)).forUpdate)
-    val rows = run(query[T].filter(item => item.i == lift(BigInt(1))).forUpdate)
+    val rows = run(query[TTT].filter(item => item.i == lift(BigInt(1))).forUpdate)
 
     rows.foreach(println)
 }
