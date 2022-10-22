@@ -29,7 +29,7 @@ case class TTT(
     @Index("a-b", unique = true) // index with same name will create multi-column index
     s: String = "default in db", // this'll set default value in table
 
-    dt: Long,
+    dt: ZonedDateTime,
 
     @Length(35)
     os: Option[String], // nullable in table
@@ -54,7 +54,7 @@ case class TTT(
     ctx.migrate[TTT]
 
     // insert into table
-    run(query[TTT].insertValue(lift(TTT(2, 2,  "Bob", 1, None, CustomField("Alice")))))
+    run(query[TTT].insertValue(lift(TTT(2, 2,  "Bob", ZonedDateTime.now(), None, CustomField("Alice")))))
 
     // query from table
     // val rows = run(query[T].filter(item => liftQuery(Vector(1,2,3)).contains( item.i)).forUpdate)
