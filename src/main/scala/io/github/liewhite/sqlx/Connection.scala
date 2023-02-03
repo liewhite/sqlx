@@ -143,7 +143,7 @@ trait Migrator[Dialect <: SqlIdiom, Naming <: NamingStrategy] {
   val naming: NamingStrategy
 
   val migratorLogger: Logger        = Logger("migration")
-  def migrate[T](using t: Table[T]) = {
+  def migrate[T](using t: Table[T]): ZIO[HikariDataSource, Nothing, Try[Unit]] = {
     for {
       dataSource <- ZIO.service[HikariDataSource]
     } yield {

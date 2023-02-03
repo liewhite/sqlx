@@ -37,7 +37,9 @@ trait Table[T] {
   // }
 
   def ns = new CustomNs {
-    override def table(s: String): String  = tableName
+    override def table(s: String): String  = {
+      tableName
+    }
     override def column(s: String): String = nameMap(s)
     def default(s: String): String         = s
   }
@@ -53,11 +55,17 @@ object Table {
       unique: RepeatableAnnotations[annotation.Unique, A],
       length: RepeatableAnnotations[annotation.Length, A],
       defaultValue: DefaultValue[A],
-      renamesAnn: RepeatableAnnotations[annotation.ColumnName, A]
+      renamesAnn: RepeatableAnnotations[annotation.ColumnName, A],
+      tableAnn: RepeatableAnnotation[annotation.TableName, A]
   ): Table[A] = {
     val defaults        = defaultValue.defaults
     val columnTypes     = summonAll[TField, gen.MirroredElemTypes]
-    val tName           = labelling.label
+    val tableNameAnn           = tableAnn()
+    val tName = if(tableNameAnn.isEmpty) {
+      labelling.label
+    }else{
+      tableNameAnn.head.name
+    }
     // scala name
     val scalaFieldNames = labelling.elemLabels.toVector
     // db name
