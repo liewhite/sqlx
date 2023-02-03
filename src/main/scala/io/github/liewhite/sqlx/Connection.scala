@@ -8,7 +8,7 @@ import org.jooq
 import java.sql.DriverManager
 import scala.collection.mutable
 import org.jooq.impl.SQLDataType
-import com.zaxxer.hikari.HikariDataSource
+// import com.zaxxer.hikari.HikariDataSource
 import io.getquill.*
 import io.getquill.context.sql.idiom.SqlIdiom
 import scala.compiletime.erasedValue
@@ -21,8 +21,10 @@ import java.time.ZoneId
 import io.getquill.context.qzio.ZioJdbcContext
 import zio.ZIO
 import scala.util.Try
+import scala.util.Using
 
 case class DBConfig(
+    `type`: String,
     host: String,
     username: String,
     db: String,
@@ -107,56 +109,31 @@ class QuillPostgresContext[N <: NamingStrategy](naming: N)
   }
 }
 
-transparent inline def getDBContext[Dialect <: SqlIdiom](config: DBConfig) = {
-  val prefix = inline erasedValue[Dialect] match {
-    case MySQLDialect    => "jdbc:mysql://"
-    case PostgresDialect => "jdbc:postgresql://"
-  }
-
-  val defaultPort = inline erasedValue[Dialect] match {
-    case MySQLDialect    => 3306
-    case PostgresDialect => 5432
-  }
-  val port        = config.port match {
-    case Some(p) => p
-    case None    => defaultPort
-  }
-
-  val datasource = new HikariDataSource()
-  datasource.setJdbcUrl(s"${prefix}${config.host}:${port}/${config.db}")
-  datasource.setUsername(config.username)
-  datasource.setMaximumPoolSize(config.maxConnection)
-  datasource.setMinimumIdle(config.minIdle)
-  datasource.setIdleTimeout(config.idleMills)
-
-  if (config.password.isDefined) {
-    datasource.setPassword(config.password.get)
-  }
-  inline erasedValue[Dialect] match {
-    case MySQLDialect    => QuillMysqlContext(???)
-    case PostgresDialect => QuillPostgresContext(???)
-  }
-}
-
 trait Migrator[Dialect <: SqlIdiom, Naming <: NamingStrategy] {
   this: ZioJdbcContext[Dialect, Naming] =>
   val naming: NamingStrategy
 
-  val migratorLogger: Logger        = Logger("migration")
-  def migrate[T](using t: Table[T]): ZIO[HikariDataSource, Nothing, Try[Unit]] = {
+  val migratorLogger: Logger = Logger("migration")
+  def migrate[T](
+      using t: Table[T]
+    ): ZIO[DBDataSource, Throwable, Unit] = {
     for {
-      dataSource <- ZIO.service[HikariDataSource]
+      dataSource <- ZIO.service[DBDataSource]
     } yield {
-      val connection = dataSource.getConnection
-      try {
-        Try{doMigrate[T](connection,naming)}
-      } finally {
-        connection.close
+      Using(dataSource.datasource.getConnection) { conn =>
+        {
+          doMigrate[T](conn, naming)
+        }
       }
     }
   }
 
-  private def doMigrate[T](jdbc: java.sql.Connection, naming: NamingStrategy)(using table: Table[T]) = {
+  private def doMigrate[T](
+      jdbc: java.sql.Connection,
+      naming: NamingStrategy,
+      // dbName: String
+    )(using table: Table[T]
+    ) = {
     val driverName = jdbc.getMetaData.getDriverName
 
     // "PostgreSQL JDBC Driver"
@@ -182,12 +159,12 @@ trait Migrator[Dialect <: SqlIdiom, Naming <: NamingStrategy] {
     def createTable(table: Table[_])                  = {
       if (table.columns.map(_.colName).contains("id")) {
         throw Exception(
-          "id has been provide by sqlx, user specified one is not allowed on :" + table.tableName
+          "id has been provide by sqlx, user specified one is not allowed on :" + tableName
         )
       }
       // default and nullable
       val createStmt = {
-        val create       = jooqConn.createTable(table.tableName)
+        val create       = jooqConn.createTable(tableName)
         val createWithID =
           create.column("id", SQLDataType.BIGINT.identity(true))
         table.columns.foldLeft(createWithID)((b, col) => {
@@ -202,7 +179,7 @@ trait Migrator[Dialect <: SqlIdiom, Naming <: NamingStrategy] {
       table.columns.foreach(item => {
         if (item.unique) {
           jooqConn
-            .alterTable(table.tableName)
+            .alterTable(tableName)
             .add(constraint(item.uniqueKeyName).unique(item.colName))
             .execute
         }
@@ -212,12 +189,12 @@ trait Migrator[Dialect <: SqlIdiom, Naming <: NamingStrategy] {
         if (idx.unique) {
           jooqConn
             .createUniqueIndex(idx.indexName)
-            .on(table.tableName, idx.cols*)
+            .on(tableName, idx.cols*)
             .execute
         } else {
           jooqConn
             .createIndex(idx.indexName)
-            .on(table.tableName, idx.cols*)
+            .on(tableName, idx.cols*)
             .execute
         }
       })
@@ -266,14 +243,14 @@ trait Migrator[Dialect <: SqlIdiom, Naming <: NamingStrategy] {
 
       (defineUniques -- currentUniques).foreach(item => {
         jooqConn
-          .alterTable(table.tableName)
+          .alterTable(tableName)
           .add(constraint(item).unique(item.stripPrefix("uk:")))
           .execute
       })
       (currentUniques -- defineUniques).foreach(item => {
         if (item.startsWith("uk:")) {
           jooqConn
-            .alterTable(table.tableName)
+            .alterTable(tableName)
             .drop(constraint(item).unique(item.stripPrefix("uk:")))
             .execute
         }
