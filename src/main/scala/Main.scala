@@ -1,64 +1,42 @@
-import io.github.liewhite.sqlx.*
-import io.github.liewhite.sqlx.annotation.{Unique, Index, Length}
-import io.getquill.*
-import java.time.ZonedDateTime
-import org.jooq.impl.SQLDataType
-import org.jooq.DataType
-import java.time.Instant
-import java.time.ZoneId
+import io.getquill._
+import zio.*
+import io.github.liewhite.sqlx.annotation.*
+import com.zaxxer.hikari.HikariDataSource
+import io.github.liewhite.sqlx.Table
+import io.github.liewhite.sqlx.QuillMysqlContext
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.Try
 
-class CustomField(val value: String)
+@TableName("ttt")
+case class T(name: String)
 
-// custom datatypes support with just serveral givens
-object CustomField {
-    given TField[CustomField] with {
-        def dataType: DataType[_] = SQLDataType.CLOB
-    }
-    given MappedEncoding[CustomField, String](_.value)
-    given MappedEncoding[String, CustomField](CustomField(_))
-}
+object MyApp extends ZIOAppDefault {
+  def run = {
+    println("xxxxxxxxxxxxxx")
 
-case class TTT(
-    @Unique // create unique constraint on table
-    fId: Long,
+    val datasource = new HikariDataSource()
+    datasource.setJdbcUrl(s"jdbc:mysql://localhost:3306/test")
+    datasource.setUsername("root")
+    // datasource.setMaximumPoolSize(config.maxConnection)
+    // datasource.setMinimumIdle(config.minIdle)
+    // datasource.setIdleTimeout(config.idleMills)
 
-    @Index("a-b", unique = true)
-    i:   BigInt,
+    // if (config.password.isDefined) {
+    //   datasource.setPassword(config.password.get)
+    // }
 
-    @Length(35)   // column length, works for type with length(like varchar), or ignore
-    @Index("a-b", unique = true) // index with same name will create multi-column index
-    s: String = "default in db", // this'll set default value in table
+    val table = Table[T]
+    val ctx = QuillMysqlContext(table.ns)
 
-    dt: ZonedDateTime,
-
-    @Length(35)
-    os: Option[String], // nullable in table
-
-    @Length(1000)
-    customField: CustomField // use custom datatypes
-)
-
-@main def main: Unit = {
-    // connnect to db
-    val ctx = getDBContext[MySQLDialect.type](
-      DBConfig(
-        host = "localhost",
-        username = "sa",
-        password = Some("123"),
-        db = "test"
-      )
-    )
     import ctx._
-
-    // auto mapping case class to db table
-    ctx.migrate[TTT]
-
-    // insert into table
-    run(query[TTT].insertValue(lift(TTT(2, 2,  "Bob", ZonedDateTime.now(), None, CustomField("Alice")))))
-
-    // query from table
-    // val rows = run(query[T].filter(item => liftQuery(Vector(1,2,3)).contains( item.i)).forUpdate)
-    val rows = run(query[TTT].filter(item => item.i == lift(BigInt(1))).forUpdate)
-
-    rows.foreach(println)
+    (for {
+      _ <- Console.printLine("start..............")
+      e <- ctx.migrate[T]
+      result <- ctx.run(query[T].insertValue(ctx.lift(T("lilin"))))
+      _ <- Console.printLine(result)
+    } yield result).provide(
+      ZLayer.succeed(datasource)
+    )
+  }
 }

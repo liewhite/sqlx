@@ -12,13 +12,15 @@ import com.zaxxer.hikari.HikariDataSource
 import io.getquill.*
 import io.getquill.context.sql.idiom.SqlIdiom
 import scala.compiletime.erasedValue
-import io.getquill.context.jdbc.JdbcContext
 import com.typesafe.scalalogging.Logger
 import com.typesafe.scalalogging.StrictLogging
 import org.jooq.DataType
 import java.time.ZonedDateTime
 import java.time.Instant
 import java.time.ZoneId
+import io.getquill.context.qzio.ZioJdbcContext
+import zio.ZIO
+import scala.util.Try
 
 case class DBConfig(
     host: String,
@@ -30,11 +32,11 @@ case class DBConfig(
     minIdle: Int = 1,
     idleMills: Int = 60 * 1000)
 
-class QuillMysqlContext(dataSource: HikariDataSource)
-    extends MysqlJdbcContext(Literal, dataSource)
-    with ExtSyntax[MySQLDialect, Literal.type]
+class QuillMysqlContext[N <: NamingStrategy](naming: N)
+    extends MysqlZioJdbcContext(naming)
+    with ExtSyntax[MySQLDialect, N]
     // migrator可以针对不同driver提供， 现在先用同一份
-    with Migrator[MySQLDialect, Literal.type] {
+    with Migrator[MySQLDialect, N] {
   // 只能在子类中覆盖codec， 在其他 trait中覆盖会歧义
   implicit val bigIntDecoder: Decoder[BigInt] =
     decoder(row =>
@@ -77,10 +79,10 @@ class QuillMysqlContext(dataSource: HikariDataSource)
   }
 }
 
-class QuillPostgresContext(dataSource: HikariDataSource)
-    extends PostgresJdbcContext(Literal, dataSource)
-    with ExtSyntax[PostgresDialect, Literal.type]
-    with Migrator[PostgresDialect, Literal.type] {
+class QuillPostgresContext[N <: NamingStrategy](naming: N)
+    extends PostgresZioJdbcContext(naming)
+    with ExtSyntax[PostgresDialect, N]
+    with Migrator[PostgresDialect, N] {
 
   override implicit val zonedDateTimeDecoder: Decoder[ZonedDateTime] =
     decoder(row =>
@@ -131,38 +133,31 @@ transparent inline def getDBContext[Dialect <: SqlIdiom](config: DBConfig) = {
     datasource.setPassword(config.password.get)
   }
   inline erasedValue[Dialect] match {
-    case MySQLDialect    => QuillMysqlContext(datasource)
-    case PostgresDialect => QuillPostgresContext(datasource)
+    case MySQLDialect    => QuillMysqlContext(???)
+    case PostgresDialect => QuillPostgresContext(???)
   }
 }
 
 trait Migrator[Dialect <: SqlIdiom, Naming <: NamingStrategy] {
-  this: JdbcContext[Dialect, Naming] =>
+  this: ZioJdbcContext[Dialect, Naming] =>
+  val naming: NamingStrategy
+
   val migratorLogger: Logger        = Logger("migration")
   def migrate[T](using t: Table[T]) = {
-    val connection = dataSource.getConnection
-    try {
-      doMigrate[T](connection)
-    } finally {
-      connection.close
+    for {
+      dataSource <- ZIO.service[HikariDataSource]
+    } yield {
+      val connection = dataSource.getConnection
+      try {
+        Try{doMigrate[T](connection,naming)}
+      } finally {
+        connection.close
+      }
     }
   }
 
-  enum DBDriver {
-    case MySQL
-    case PostgreSQL
-    case Others
-  }
-
-  private def doMigrate[T](jdbc: java.sql.Connection)(using table: Table[T]) = {
+  private def doMigrate[T](jdbc: java.sql.Connection, naming: NamingStrategy)(using table: Table[T]) = {
     val driverName = jdbc.getMetaData.getDriverName
-    val driver     = if (driverName.contains("PostgreSQL")) {
-      DBDriver.PostgreSQL
-    } else if (driverName.contains("MySQL")) {
-      DBDriver.MySQL
-    } else {
-      DBDriver.Others
-    }
 
     // "PostgreSQL JDBC Driver"
     // "MySQL Connector/J"
@@ -185,8 +180,10 @@ trait Migrator[Dialect <: SqlIdiom, Naming <: NamingStrategy] {
       }
     }
     def createTable(table: Table[_])                  = {
-      if (table.columnsMap.contains("id")) {
-        throw Exception("custom id not allowed on :" + table.tableName)
+      if (table.columns.map(_.colName).contains("id")) {
+        throw Exception(
+          "id has been provide by sqlx, user specified one is not allowed on :" + table.tableName
+        )
       }
       // default and nullable
       val createStmt = {
