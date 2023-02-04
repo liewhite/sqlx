@@ -11,7 +11,8 @@ object MyApp extends ZIOAppDefault {
 
     (for {
       repo <- ZIO.service[UserRepo]
-      _    <- repo.migrate()
+      xx    <- repo.migrate()
+      _ <- Console.printLine(xx)
       _   <- repo.create(User("ojbk"))
       users <- repo.listAll()
       _ <- Console.printLine(users)

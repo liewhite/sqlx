@@ -11,14 +11,15 @@ import io.github.liewhite.sqlx.DBDataSource
 import io.github.liewhite.sqlx.DBConfig
 import javax.sql.DataSource
 
-@TableName("liewhite_user")
+@TableName("user")
+@Driver("mysql")
 case class User(
     @ColumnName("nick_name")
     name: String)
 
 trait UserRepo {
   def migrate(): ZIO[Any, Throwable, Unit]
-  def create(t: User): ZIO[Any, SQLException, Long]
+  def create(t: User): ZIO[Any, Exception, Long]
   def listAll(): ZIO[Any, SQLException, Vector[User]]
 }
 
@@ -32,8 +33,12 @@ class UserRepoImpl(datasource: DBDataSource) extends UserRepo {
     ctx.migrate[User].provide(ZLayer.succeed(datasource))
   }
 
-  override def create(t: User) = {
-    run(query[User].insertValue(lift(t))).provide(ZLayer.succeed(datasource.datasource))
+  override def create(t: User) = { 
+    (for {
+      x <-translate(query[User].insertValue(lift(t)))
+      _ <- Console.printLine(x)
+      y <- run(query[User].insertValue(lift(t)))
+    } yield y).provide(ZLayer.succeed(datasource.datasource))
   }
   override def listAll() = {
     run(query[User]).provide(ZLayer.succeed(datasource.datasource)).map(_.toVector)

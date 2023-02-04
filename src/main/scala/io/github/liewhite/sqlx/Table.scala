@@ -11,6 +11,12 @@ import io.github.liewhite.sqlx.annotation
 import io.github.liewhite.common.DefaultValue
 import org.jooq
 import io.getquill.NamingStrategy
+import io.getquill.MysqlEscape
+import io.getquill.CompositeNamingStrategy2
+import io.getquill.PostgresEscape
+
+class DriverNotSupportError(driver: String)
+    extends Exception(s"driver not support: $driver")
 
 case class Index(
     name: String,
@@ -27,6 +33,7 @@ trait CustomNs extends NamingStrategy
 // 然后将diff apply 到db
 // 再从database meta 恢复出table,用作后续jooq的操作
 trait Table[T] {
+  def driver: String
   def tableName: String
   def indexes: Vector[Index]
   // def colsMap: Map[String, ]
@@ -36,12 +43,22 @@ trait Table[T] {
   //   new TableNamingStrategy((s:String) => tableName, (s:String)=> nameMap(s))
   // }
 
-  def ns = new CustomNs {
-    override def table(s: String): String  = {
-      tableName
+  def ns: CompositeNamingStrategy2[CustomNs, NamingStrategy] = {
+    val renameNs = new CustomNs {
+      override def table(s: String): String  = {
+        tableName
+      }
+      override def column(s: String): String = nameMap(s)
+      def default(s: String): String         = s
     }
-    override def column(s: String): String = nameMap(s)
-    def default(s: String): String         = s
+    CompositeNamingStrategy2(
+      renameNs,
+      if (driver == "mysql") { MysqlEscape }
+      else if (driver == "postgresql") { PostgresEscape }
+      else {
+        throw DriverNotSupportError(driver)
+      }
+    )
   }
 }
 
@@ -56,16 +73,26 @@ object Table {
       length: RepeatableAnnotations[annotation.Length, A],
       defaultValue: DefaultValue[A],
       renamesAnn: RepeatableAnnotations[annotation.ColumnName, A],
-      tableAnn: RepeatableAnnotation[annotation.TableName, A]
+      tableNameAnn: RepeatableAnnotation[annotation.TableName, A],
+      driverAnn: RepeatableAnnotation[annotation.Driver, A]
   ): Table[A] = {
     val defaults        = defaultValue.defaults
     val columnTypes     = summonAll[TField, gen.MirroredElemTypes]
-    val tableNameAnn           = tableAnn()
-    val tName = if(tableNameAnn.isEmpty) {
-      labelling.label
-    }else{
-      tableNameAnn.head.name
+    val customTableName = tableNameAnn()
+    val customDriverAnn = driverAnn()
+    val customDriver    = if (customDriverAnn.isEmpty) {
+      "mysql"
+    } else {
+      customDriverAnn.head.name
     }
+
+    val tName           = if (customTableName.isEmpty) {
+      labelling.label
+    } else {
+      customTableName.head.name
+    }
+
+    // val tName           = labelling.label
     // scala name
     val scalaFieldNames = labelling.elemLabels.toVector
     // db name
@@ -84,6 +111,8 @@ object Table {
         rename.getOrElse(oriName)
       }
     }
+    // 仍然保存原始scala name
+    // val dbColNames = scalaFieldNames
 
     val uniques = unique().map(item => if (item.isEmpty) false else true)
 
@@ -122,6 +151,9 @@ object Table {
     }
 
     new Table {
+
+      def driver: String = customDriver
+
       def tableName = tName
       def indexes   = groupedIdx
       def columns   = cols.toVector

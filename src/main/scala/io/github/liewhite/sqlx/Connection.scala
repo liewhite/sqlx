@@ -119,21 +119,22 @@ trait Migrator[Dialect <: SqlIdiom, Naming <: NamingStrategy] {
     ): ZIO[DBDataSource, Throwable, Unit] = {
     for {
       dataSource <- ZIO.service[DBDataSource]
-    } yield {
-      Using(dataSource.datasource.getConnection) { conn =>
-        {
-          doMigrate[T](conn, naming)
+      result <- ZIO.fromTry {
+        Using(dataSource.datasource.getConnection) { conn =>
+          {
+            doMigrate[T](conn, naming)
+          }
         }
       }
-    }
+    } yield result
   }
 
   private def doMigrate[T](
       jdbc: java.sql.Connection,
-      naming: NamingStrategy,
+      naming: NamingStrategy
       // dbName: String
     )(using table: Table[T]
-    ) = {
+    ): Unit = {
     val driverName = jdbc.getMetaData.getDriverName
 
     // "PostgreSQL JDBC Driver"
@@ -143,6 +144,7 @@ trait Migrator[Dialect <: SqlIdiom, Naming <: NamingStrategy] {
     val tables: mutable.Map[String, Table[_]] = mutable.Map.empty
 
     val tableName = table.tableName
+
     getTable(tableName) match {
       case None    => createTable(table)
       case Some(t) => updateTable(table, t)
