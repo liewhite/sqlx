@@ -16,6 +16,8 @@ object MyApp extends ZIOAppDefault {
   def run = {
     val config = DBConfig("mysql", "localhost", "root", "test")
     val user= User(0, "leeliewhite")
+    val q = Query[User].User
+    println(q.name)
 
     (for {
       migResult <- Migration.Migrate[User]

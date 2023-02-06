@@ -33,7 +33,7 @@ case class Index(
 // migrate时， 先拿到meta，
 // 然后将diff apply 到db
 // 再从database meta 恢复出table,用作后续jooq的操作
-trait Table[T <: Product: Mirror.ProductOf] {
+trait Table[T <: Product: Mirror.ProductOf] extends Selectable {
   def driver: String
   def tableName: String
   def indexes: Vector[Index]
@@ -44,12 +44,17 @@ trait Table[T <: Product: Mirror.ProductOf] {
   def jooqCols: Vector[org.jooq.Field[Object]] =
     columns.map(item => field(item.colName))
 
-  def nameMap: Map[String, String] =
-    columns.map(item => (item.fieldName, item.colName)).toMap
+  def colMap: Map[String, Field[_]] = 
+    columns.map(item => (item.fieldName, item)).toMap
 
   def values(t: T): Vector[Any] = {
     val vs = Tuple.fromProductTyped(t).toList.toVector
     vs
+  }
+
+
+  def selectDynamic(name: String): Any = {
+    colMap(name)
   }
 
 }
