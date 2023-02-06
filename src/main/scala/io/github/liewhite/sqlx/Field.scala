@@ -9,32 +9,40 @@ import org.jooq.impl.SQLDataType
 import java.time.LocalDateTime
 import java.time.ZonedDateTime
 import java.util.Date
+import scala.deriving.Mirror
 
 case class Field[T](
+    index: Int,
     modelName: String,
     // scala case class field name
     fieldName: String,
     // database table name
+    primaryKey: Boolean,
     colName: String,
     unique: Boolean,
     default: Option[Any],
     length: Option[Int],
-    t: TField[T]
-){
-  def uniqueKeyName: String = "uk:" + colName
+    t: TField[T]) {
+  def getValue[A <: Product: Mirror.ProductOf](o: A): T = {
+    val value = Tuple.fromProductTyped(o).toList.apply(index).asInstanceOf[T]
+    value
+  }
+
+  def uniqueKeyName: String      = "uk:" + colName
   def getDataType: DataType[Any] = {
-      var datatype = t.dataType.asInstanceOf[DataType[Any]]
+    var datatype = t.dataType.asInstanceOf[DataType[Any]]
+    if (primaryKey) {
+      datatype = datatype.nullable(false).identity(true)
+    } else {
+      datatype = datatype.nullable(false)
       if (default.isDefined) {
         datatype = datatype.defaultValue(default.get.asInstanceOf[Any])
       }
-      datatype = datatype.nullable(t.nullable)
-      if (colName == "id") {
-        datatype = datatype.identity(true)
-      }
-      if(length.isDefined) {
-        datatype = datatype.length(length.get)
-      }
-      datatype
+    }
+    if (length.isDefined) {
+      datatype = datatype.length(length.get)
+    }
+    datatype
   }
 }
 
@@ -46,16 +54,16 @@ trait TField[T] {
 }
 
 object TField {
-  given[T](using t: TField[T]): TField[Option[T]] with {
+  given [T](using t: TField[T]): TField[Option[T]] with {
     override def nullable: Boolean = true
-    def dataType: DataType[_] = t.dataType.nullable(true)
+    def dataType: DataType[_]      = t.dataType.nullable(true)
   }
 
   given TField[Int] with {
     def dataType: DataType[_] = SQLDataType.INTEGER
   }
 
-  given TField[Long] with {
+  given TField[Long] with  {
     def dataType: DataType[_] = SQLDataType.BIGINT
   }
   given TField[Float] with {
@@ -86,7 +94,7 @@ object TField {
     def dataType: DataType[_] = SQLDataType.BIGINT
   }
 
-  given TField[Date] with {
+  given TField[Date] with        {
     def dataType: DataType[_] = SQLDataType.BIGINT
   }
   given TField[Array[Byte]] with {

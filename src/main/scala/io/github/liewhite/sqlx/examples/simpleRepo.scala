@@ -4,22 +4,30 @@ import io.getquill._
 import zio.*
 import io.github.liewhite.sqlx.annotation.*
 import io.github.liewhite.sqlx.*
+import org.jooq.DSLContext
+import org.jooq.impl.DefaultDSLContext
+import org.jooq.Configuration
+import org.jooq.SQLDialect
+
+import io.github.liewhite.sqlx.DBDataSource
+
+import io.github.liewhite.sqlx.Migration
 
 object MyApp extends ZIOAppDefault {
   def run = {
     val config = DBConfig("mysql", "localhost", "root", "test")
+    val user= User(0, "leeliewhite")
 
     (for {
-      repo <- ZIO.service[UserRepo]
-      xx    <- repo.migrate()
-      _ <- Console.printLine(xx)
-      _   <- repo.create(User("ojbk"))
-      users <- repo.listAll()
-      _ <- Console.printLine(users)
-    } yield users).provide(
-      UserRepoImpl.layer,
+      ds <- ZIO.service[DBDataSource]
+      migResult <- Migration.Migrate[User]
+      q1 <- Query.insertOne(user)
+      // q2 <- Query.insertMany(Vector(user,user,user))
+      _ <- Console.printLine(q1.execute())
+    } yield migResult).provide(
+      ZLayer.succeed(config),
       DBDataSource.layer,
-      ZLayer.succeed(config)
+      DBContext.layer,
     )
   }
 }

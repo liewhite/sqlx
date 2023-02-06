@@ -3,17 +3,23 @@ package io.github.liewhite.sqlx
 import scala.compiletime.*
 import scala.quoted.*
 import scala.deriving.Mirror
+import scala.jdk.CollectionConverters.*
 
 import shapeless3.deriving.{K0, Continue, Labelling}
 import io.github.liewhite.common.SummonUtils.summonAll
 import io.github.liewhite.common.{RepeatableAnnotation, RepeatableAnnotations}
 import io.github.liewhite.sqlx.annotation
 import io.github.liewhite.common.DefaultValue
+
 import org.jooq
+import org.jooq.impl.DSL.*
+
 import io.getquill.NamingStrategy
 import io.getquill.MysqlEscape
 import io.getquill.CompositeNamingStrategy2
 import io.getquill.PostgresEscape
+import zio.ZIO
+import org.jooq.DSLContext
 
 class DriverNotSupportError(driver: String)
     extends Exception(s"driver not support: $driver")
@@ -32,42 +38,34 @@ trait CustomNs extends NamingStrategy
 // migrate时， 先拿到meta，
 // 然后将diff apply 到db
 // 再从database meta 恢复出table,用作后续jooq的操作
-trait Table[T] {
+trait Table[T <: Product: Mirror.ProductOf] {
   def driver: String
   def tableName: String
   def indexes: Vector[Index]
-  // def colsMap: Map[String, ]
   def columns: Vector[Field[_]]
-  // def namingStrategy(): NamingStrategy = {
-  def nameMap = columns.map(item => (item.fieldName, item.colName)).toMap
-  //   new TableNamingStrategy((s:String) => tableName, (s:String)=> nameMap(s))
-  // }
 
-  def ns: CompositeNamingStrategy2[CustomNs, NamingStrategy] = {
-    val renameNs = new CustomNs {
-      override def table(s: String): String  = {
-        tableName
-      }
-      override def column(s: String): String = nameMap(s)
-      def default(s: String): String         = s
-    }
-    CompositeNamingStrategy2(
-      renameNs,
-      if (driver == "mysql") { MysqlEscape }
-      else if (driver == "postgresql") { PostgresEscape }
-      else {
-        throw DriverNotSupportError(driver)
-      }
-    )
+  def pk: Option[Field[_]] = columns.find(_.primaryKey)
+
+  def jooqCols: Vector[org.jooq.Field[Object]] =
+    columns.map(item => field(item.colName))
+
+  def nameMap: Map[String, String] =
+    columns.map(item => (item.fieldName, item.colName)).toMap
+
+  def values(t: T): Vector[Any] = {
+    val vs = Tuple.fromProductTyped(t).toList.toVector
+    vs
   }
+
 }
 
 object Table {
-  def apply[T: Table] = summon[Table[T]]
+  def apply[T <: Product: Mirror.ProductOf: Table] = summon[Table[T]]
 
-  inline given derived[A](using
+  inline given derived[A <: Product](using
       gen: Mirror.ProductOf[A],
       labelling: Labelling[A],
+      primary: RepeatableAnnotations[annotation.Primary, A],
       index: RepeatableAnnotations[annotation.Index, A],
       unique: RepeatableAnnotations[annotation.Unique, A],
       length: RepeatableAnnotations[annotation.Length, A],
@@ -86,11 +84,17 @@ object Table {
       customDriverAnn.head.name
     }
 
-    val tName           = if (customTableName.isEmpty) {
+    val tName = if (customTableName.isEmpty) {
       labelling.label
     } else {
       customTableName.head.name
     }
+
+    val primaryKey   = primary().filter(_.nonEmpty)
+    if (primaryKey.length > 1) {
+      throw Exception(s"more than 1 primary key in table $tName")
+    }
+    val isPrimaryKey = primary().map(_.nonEmpty)
 
     // val tName           = labelling.label
     // scala name
@@ -145,18 +149,30 @@ object Table {
         val unique  = uniques(index)
         val default = defaults.get(name)
         val typeLen = len(index)
+        val pk      = isPrimaryKey(index)
 
-        Field(tName, name, dbColNames(index), unique, default, typeLen, tp)
+        Field(
+          index,
+          tName,
+          name,
+          pk,
+          dbColNames(index),
+          unique,
+          default,
+          typeLen,
+          tp
+        )
       }
     }
 
-    new Table {
+    new Table[A] {
 
       def driver: String = customDriver
 
       def tableName = tName
-      def indexes   = groupedIdx
-      def columns   = cols.toVector
+
+      def indexes = groupedIdx
+      def columns = cols.toVector
     }
   }
 }
