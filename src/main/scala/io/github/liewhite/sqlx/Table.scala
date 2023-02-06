@@ -14,10 +14,6 @@ import io.github.liewhite.common.DefaultValue
 import org.jooq
 import org.jooq.impl.DSL.*
 
-import io.getquill.NamingStrategy
-import io.getquill.MysqlEscape
-import io.getquill.CompositeNamingStrategy2
-import io.getquill.PostgresEscape
 import zio.ZIO
 import org.jooq.DSLContext
 
@@ -34,7 +30,6 @@ case class Index(
   }
 }
 
-trait CustomNs extends NamingStrategy
 // migrate时， 先拿到meta，
 // 然后将diff apply 到db
 // 再从database meta 恢复出table,用作后续jooq的操作

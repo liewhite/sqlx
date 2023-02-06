@@ -6,10 +6,10 @@ import scala.jdk.CollectionConverters.*
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.jooq.impl.DSL.*
-import com.typesafe.scalalogging.Logger
 import zio.ZIO
 import scala.util.*
 import org.jooq.DataType
+import zio.Unsafe
 
 object Migration {
   def Migrate[T <: Product: Table]: ZIO[DBDataSource, Throwable, Unit] = {
@@ -112,9 +112,20 @@ object Migration {
                       .dropDefault()
                       .execute
                   } else {
-                    Logger("migration").info(
-                      s"skip dropping default on not null column: ${col.modelName}.${col.colName}"
-                    )
+                    Unsafe.unsafe { implicit unsafe =>
+                      {
+                        zio.Runtime.default.unsafe
+                          .run {
+                            for {
+                              _ <- ZIO.logInfo(
+                                s"skip dropping default on not null column: ${col.modelName}.${col.colName}"
+                              )
+                            } yield ()
+                          }
+                          .getOrThrowFiberFailure()
+                      }
+
+                    }
                   }
                 }
               }

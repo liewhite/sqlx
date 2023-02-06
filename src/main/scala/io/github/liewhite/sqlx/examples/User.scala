@@ -1,6 +1,5 @@
 package io.github.liewhite.sqlx.examples
 
-import io.getquill._
 import zio.*
 import io.github.liewhite.sqlx.annotation.*
 // import com.zaxxer.hikari.HikariDataSource

@@ -1,6 +1,5 @@
 package io.github.liewhite.sqlx.examples
 
-import io.getquill._
 import zio.*
 import io.github.liewhite.sqlx.annotation.*
 import io.github.liewhite.sqlx.*
@@ -19,11 +18,10 @@ object MyApp extends ZIOAppDefault {
     val user= User(0, "leeliewhite")
 
     (for {
-      ds <- ZIO.service[DBDataSource]
       migResult <- Migration.Migrate[User]
       q1 <- Query.insertOne(user)
-      // q2 <- Query.insertMany(Vector(user,user,user))
-      _ <- Console.printLine(q1.execute())
+      q2 <- Query.insertMany(Vector(user,user,user))
+      _ <- Console.printLine(q1.execute(), q2.execute())
     } yield migResult).provide(
       ZLayer.succeed(config),
       DBDataSource.layer,
