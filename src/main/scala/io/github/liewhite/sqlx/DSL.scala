@@ -10,6 +10,8 @@ import org.jooq
 import org.jooq.InsertValuesStepN
 
 import io.github.liewhite.sqlx.DSLMacros
+
+
 enum JoinType {
   case InnerJoin
   case LeftJoin
@@ -40,7 +42,7 @@ object Query {
       ctx <- ZIO.service[DSLContext]
     } yield {
       ctx
-        .insertInto(table(t.tableName))
+        .insertInto(t.table)
         .columns(t.jooqCols.filter(item => true).asJava)
         .values(t.values(o).asJava)
     }
@@ -91,6 +93,7 @@ object Query {
       )
       DSLMacros.refinementQuery(newQ.asInstanceOf[Q], t)
     }
+
     /**
       * 
       *
@@ -107,4 +110,31 @@ object Query {
 
 class Condition {}
 
-class AfterWhere[Q <: Query](val query: Q, val condition: Condition) {}
+class AfterWhere[Q <: Query](val query: Q, val condition: Condition) {
+  inline def select[T <: Tuple](fields: Q => T): AfterSelect[T] = {
+    new AfterSelect(this,fields(query))
+  }
+
+  inline def orderBy[T](fields: Q => Field[T]): AfterOrderBy[T] = {
+    new AfterOrderBy(this,fields(query))
+  }
+}
+
+
+class AfterOrderBy[T](val afterWhere: AfterWhere[_],val orderBy: Field[T]){
+  def limit(n: Int): AfterLimit[T] = {
+    new AfterLimit(this,n)
+  }
+}
+
+class AfterLimit[T](val AfterOrderBy: AfterOrderBy[_],val limit: Int){
+
+}
+
+class AfterSelect[T <: Tuple](val afterWhere: AfterWhere[_],val fields: T){
+  inline def end() = {
+
+  }
+
+
+}

@@ -15,16 +15,21 @@ import io.github.liewhite.sqlx.Migration
 object MyApp extends ZIOAppDefault {
   def run = {
     val config = DBConfig("mysql", "localhost", "root", "test")
-    val user= User(0, "leeliewhite")
-    val q = Query[User].User
-    println(q.name)
+    val q = Table[User]
 
+    // val fields = q.fields
     (for {
       migResult <- Migration.Migrate[User]
-      q1 <- Query.insertOne(user)
-      q2 <- Query.insertMany(Vector(user,user,user))
-      _ <- Console.printLine(q1.execute(), q2.execute())
-    } yield migResult).provide(
+      ctx <- ZIO.service[org.jooq.DSLContext]
+      _ <- ZIO.attempt{
+        ctx.insertInto(q.table).columns(q.field_name, q.field_detail).values("xxx", Detail("xxxx")).execute()
+        ctx.select(q.field_name, q.field_detail).from(q.table).where(q.field_name.eq("xxx")).fetch()
+      }
+      result <- ZIO.attempt{
+        ctx.select(q.field_name, q.field_detail).from(q.table).where(q.field_name.eq("xxx")).fetch()
+      }
+      _ <- Console.printLine(result)
+    } yield result).provide(
       ZLayer.succeed(config),
       DBDataSource.layer,
       DBContext.layer,

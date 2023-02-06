@@ -36,6 +36,7 @@ case class Index(
 trait Table[T <: Product: Mirror.ProductOf] extends Selectable {
   def driver: String
   def tableName: String
+  def table: jooq.Table[org.jooq.Record] = jooq.impl.DSL.table(tableName)
   def indexes: Vector[Index]
   def columns: Vector[Field[_]]
 
@@ -44,7 +45,7 @@ trait Table[T <: Product: Mirror.ProductOf] extends Selectable {
   def jooqCols: Vector[org.jooq.Field[Object]] =
     columns.map(item => field(item.colName))
 
-  def colMap: Map[String, Field[_]] = 
+  def colMap: Map[String, Field[_]] =
     columns.map(item => (item.fieldName, item)).toMap
 
   def values(t: T): Vector[Any] = {
@@ -52,15 +53,13 @@ trait Table[T <: Product: Mirror.ProductOf] extends Selectable {
     vs
   }
 
-
   def selectDynamic(name: String): Any = {
-    colMap(name)
+    colMap(name.stripPrefix("field_")).field
   }
 
 }
 
 object Table {
-  def apply[T <: Product: Mirror.ProductOf: Table] = summon[Table[T]]
 
   inline given derived[A <: Product](using
       gen: Mirror.ProductOf[A],
@@ -175,5 +174,44 @@ object Table {
       def columns = cols.toVector
     }
     result
+  }
+  transparent inline def apply[T <: Product] = {
+    ${ queryImpl[T] }
+  }
+
+  private def queryImpl[T <: Product: Type](using Quotes): Expr[Any] = {
+    import quotes.reflect.*
+
+    def recur[mels: Type, mets: Type](baseType: TypeRepr): TypeRepr = {
+      Type.of[mels] match
+        case '[mel *: melTail] => {
+          Type.of[mets] match {
+            case '[head *: tail] => {
+              val label     = Type.valueOfConstant[mel].get.toString
+              val withField =
+                Refinement(baseType, "field_" + label, TypeRepr.of[jooq.Field[head]])
+              recur[melTail, tail](withField)
+            }
+          }
+        }
+        case '[EmptyTuple]     => baseType
+    }
+    Expr.summon[Mirror.ProductOf[T]].get match {
+      case '{
+            $m: Mirror.ProductOf[T] {
+              type MirroredElemLabels = mels; type MirroredElemTypes = mets
+            }
+          } =>
+        val tableType = recur[mels, mets](TypeRepr.of[Table[T]])
+
+        tableType.asType match {
+          case '[tpe] =>
+            '{
+              val table = summonInline[Table[T]]
+              table.asInstanceOf[tpe]
+            }
+        }
+      case e => report.error(e.show); ???
+    }
   }
 }

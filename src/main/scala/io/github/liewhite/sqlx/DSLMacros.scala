@@ -11,6 +11,7 @@ object DSLMacros {
     ) = {
     ${ refinementQueryImpl[Q, T]('q, 'table) }
   }
+
   def refinementQueryImpl[Q <: Query: Type, T <: Product: Type](
       q: Expr[Q],
       table: Expr[Table[T]]
