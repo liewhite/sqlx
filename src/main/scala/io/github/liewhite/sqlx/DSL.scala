@@ -9,16 +9,28 @@ import scala.jdk.CollectionConverters.*
 import org.jooq
 import org.jooq.InsertValuesStepN
 
+import io.github.liewhite.sqlx.DSLMacros
+enum JoinType {
+  case InnerJoin
+  case LeftJoin
+  case RightJoin
+}
+case class JoinItem(
+    table: Table[_],
+    joinType: JoinType)
 // query 的 selectable 要用refinement type来加入各个table
-class Query(val tables: Map[String, Table[_]]) extends Selectable {
+class Query(
+    val tables: Map[String, Table[_]],
+    val joins: Vector[JoinItem] = Vector.empty)
+    extends Selectable {
 
   def selectDynamic(name: String): Any = {
     tables(name)
   }
+
 }
 
 object Query {
-  // todo 允许声明主键
   def insertOne[T <: Product: Table](
       o: T
     ): ZIO[DSLContext, Nothing, InsertValuesStepN[org.jooq.Record]] = {
@@ -54,45 +66,45 @@ object Query {
   transparent inline def apply[T <: Product: Table] = {
     val t = summon[Table[T]]
     val q = new Query(Map.empty)
-    refinement(q, t)
+    DSLMacros.refinementQuery(q, t)
   }
 
   extension [Q <: Query](q: Q) {
-    transparent inline def join[T <: Product](using table: Table[T]) = {
-      val newQuery = new Query(q.tables.updated(table.tableName, table))
-      refinement(newQuery.asInstanceOf[Q], table)
+    transparent inline def join(t: Table[_])      = {
+      val newQ = new Query(
+        q.tables.updated(t.tableName, t),
+        q.joins.appended(JoinItem(t, JoinType.InnerJoin))
+      )
+      DSLMacros.refinementQuery(newQ.asInstanceOf[Q], t)
     }
-
-    inline def where(condition: Q => Condition): AfterWhere[Q] = ???
-  }
-
-  transparent inline def refinement[Q <: Query, T <: Product](
-      q: Q,
-      table: Table[T]
-    ) = {
-    ${ refinementImpl[Q, T]('q, 'table) }
-  }
-  def refinementImpl[Q <: Query: Type, T <: Product: Type](
-      q: Expr[Q],
-      table: Expr[Table[T]]
-    )(using Quotes
-    ): Expr[Any] = {
-    import quotes.reflect.*
-
-    val tableName     = TypeRepr.of[T].classSymbol.get.name
-    val tableNameExpr = Expr(tableName)
-    Refinement(TypeRepr.of[Q], tableName, TypeRepr.of[Table[T]]).asType match {
-      case '[tpe] => {
-        val res = '{
-          val newQ = new Query(${ q }.tables.updated($tableNameExpr, $table))
-          newQ.asInstanceOf[tpe]
-        }
-        res
-      }
+    transparent inline def leftJoin(t: Table[_])  = {
+      val newQ = new Query(
+        q.tables.updated(t.tableName, t),
+        q.joins.appended(JoinItem(t, JoinType.LeftJoin))
+      )
+      DSLMacros.refinementQuery(newQ.asInstanceOf[Q], t)
+    }
+    transparent inline def rightJoin(t: Table[_]) = {
+      val newQ = new Query(
+        q.tables.updated(t.tableName, t),
+        q.joins.appended(JoinItem(t, JoinType.RightJoin))
+      )
+      DSLMacros.refinementQuery(newQ.asInstanceOf[Q], t)
+    }
+    /**
+      * 
+      *
+      * @param condition
+      * @return
+      */
+    inline def where(conditionFunc: Q => Condition): AfterWhere[Q] = {
+      val condition = conditionFunc(q)
+      AfterWhere(q,condition)
     }
   }
+
 }
 
 class Condition {}
 
-class AfterWhere[Q <: Query] {}
+class AfterWhere[Q <: Query](val query: Q, val condition: Condition) {}

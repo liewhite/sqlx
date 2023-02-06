@@ -160,7 +160,7 @@ object Table {
       }
     }
 
-    new Table[A] {
+    val result = new Table[A] {
 
       def driver: String = customDriver
 
@@ -169,5 +169,6 @@ object Table {
       def indexes = groupedIdx
       def columns = cols.toVector
     }
+    result
   }
 }
