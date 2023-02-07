@@ -27,7 +27,7 @@ object MyApp extends ZIOAppDefault {
       migResult <- Migration.Migrate[User]
       ctx <- ZIO.service[org.jooq.DSLContext]
       _ <- ZIO.attempt{
-        println(ctx.insertInto(q.table).columns(q.field_name, q.field_detail).values(None,Detail("xxxx")).execute())
+        println(ctx.insertInto(q.table).columns(q.field_name, q.field_detail).values("xxx",Detail("xxxx")).execute())
       }
     } yield ()).provide(
       ZLayer.succeed(config),

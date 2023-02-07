@@ -43,8 +43,8 @@ case class User(
     @Primary
     id: Long,
 
-    name: Option[String],
-    age: Option[Int],
+    name: String = "default name",
+    age: Int = 0,
 
     @ColumnName("details")
     @Length(100)
