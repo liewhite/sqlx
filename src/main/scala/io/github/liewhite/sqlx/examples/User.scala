@@ -27,7 +27,9 @@ object Detail {
           databaseObject.fromJson[Detail].toOption.get
         }
 
-        override def to(userObject: Detail): String = userObject.toJson
+        override def to(userObject: Detail): String = {
+          userObject.toJson
+        }
 
         override def fromType(): Class[String] = classOf[String]
 
@@ -41,25 +43,9 @@ case class User(
     @Primary
     id: Long,
 
-    age: Option[String],
-    age2: Option[String],
-    age3: Option[String],
-    age4: Option[String],
-    age5: String,
-    age6: String,
-    age7: String,
-    age8: String,
-    age9: String,
-    age10: String,
-    xxx: Option[Int],
-
-    @Precision(65, 10)
-    p: BigDecimal,
-
-    @ColumnName("nick_name")
-    @Length(100)
-    name: String,
+    name: Option[String],
+    age: Option[Int],
 
     @ColumnName("details")
     @Length(100)
-    detail: Detail)
+    detail: Detail = Detail("xxxx"))
