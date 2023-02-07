@@ -9,8 +9,12 @@ import org.jooq.impl.BuiltInDataType
 import org.jooq.impl.SQLDataType
 import java.time.LocalDateTime
 import java.time.ZonedDateTime
-import java.util.Date
 import scala.deriving.Mirror
+import java.{util => ju}
+import java.lang
+import java.time.Instant
+import java.time.ZoneId
+import java.math.BigInteger
 
 case class Field[T](
     index: Int,
@@ -135,27 +139,94 @@ object TField {
     })
   }
 
-  // given TField[Boolean] with {
-  //   def dataType: DataType[_] = SQLDataType.BOOLEAN
-  // }
+  given TField[Boolean] with {
+    def dataType: DataType[Boolean] = SQLDataType.BOOLEAN.asConvertedDataType(new Converter[java.lang.Boolean, Boolean] {
 
-  // given TField[BigInt] with {
-  //   def dataType: DataType[_] = SQLDataType.DECIMAL_INTEGER(65)
-  // }
+      override def from(databaseObject: lang.Boolean): Boolean = {
+        databaseObject
+      }
 
-  // given TField[BigDecimal] with {
-  //   def dataType: DataType[_] = SQLDataType.DECIMAL_INTEGER(65)
-  // }
+      override def to(userObject: Boolean): lang.Boolean = {
+        userObject
+      }
 
-  // given TField[ZonedDateTime] with {
-  //   def dataType: DataType[_] = SQLDataType.BIGINT
-  // }
+      override def fromType(): Class[lang.Boolean] = classOf[lang.Boolean]
 
-  // given TField[Date] with        {
-  //   def dataType: DataType[_] = SQLDataType.BIGINT
-  // }
-  // given TField[Array[Byte]] with {
-  //   def dataType: DataType[_] = SQLDataType.BLOB
-  // }
+      override def toType(): Class[Boolean] = classOf[Boolean]
+
+    })
+  }
+
+  given TField[BigInt] with {
+    def dataType: DataType[BigInt] = SQLDataType.DECIMAL_INTEGER(65).asConvertedDataType(new Converter[java.math.BigInteger, BigInt] {
+
+      override def from(databaseObject: BigInteger): BigInt = databaseObject
+
+      override def to(userObject: BigInt): BigInteger = userObject.bigInteger
+
+      override def fromType(): Class[BigInteger] = classOf[BigInteger]
+
+      override def toType(): Class[BigInt] = classOf[BigInt]
+
+    })
+  }
+
+  given TField[BigDecimal] with {
+    def dataType: DataType[BigDecimal] = SQLDataType.NUMERIC(65,10).asConvertedDataType(new Converter[java.math.BigDecimal, BigDecimal] {
+
+      override def from(databaseObject: java.math.BigDecimal): BigDecimal = {
+        databaseObject
+      }
+
+      override def to(userObject: BigDecimal): java.math.BigDecimal = {
+        userObject.bigDecimal
+      }
+
+      override def fromType(): Class[java.math.BigDecimal] = classOf[java.math.BigDecimal]
+
+      override def toType(): Class[BigDecimal] = classOf[BigDecimal]
+    })
+  }
+
+  given TField[ZonedDateTime] with {
+    def dataType: DataType[ZonedDateTime] = SQLDataType.BIGINT.asConvertedDataType(new Converter[java.lang.Long, ZonedDateTime] {
+
+      override def from(databaseObject: lang.Long): ZonedDateTime = {
+        ZonedDateTime.ofInstant(Instant.ofEpochMilli(databaseObject), ZoneId.systemDefault())
+      }
+
+      override def to(userObject: ZonedDateTime): lang.Long = {
+        userObject.toInstant().toEpochMilli()
+      }
+
+      override def fromType(): Class[lang.Long] = classOf[lang.Long]
+
+      override def toType(): Class[ZonedDateTime] = classOf[ZonedDateTime]
+
+    })
+  }
+
+  given TField[ju.Date] with        {
+    def dataType: DataType[ju.Date] = SQLDataType.BIGINT.asConvertedDataType(new Converter[java.lang.Long, ju.Date] {
+
+      override def from(databaseObject: lang.Long): ju.Date = {
+        ju.Date.from(Instant.ofEpochMilli(databaseObject))
+      }
+
+      override def to(userObject: ju.Date): lang.Long = {
+        userObject.toInstant().toEpochMilli()
+      }
+
+      override def fromType(): Class[lang.Long] = classOf[java.lang.Long]
+
+      override def toType(): Class[ju.Date] = classOf[ju.Date]
+
+
+    })
+  }
+
+  given TField[Array[Byte]] with {
+    def dataType: DataType[Array[Byte]] = SQLDataType.BLOB
+  }
 
 }
