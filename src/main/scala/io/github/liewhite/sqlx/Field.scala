@@ -101,9 +101,13 @@ object TField {
     def innerDataType: DataType[Long] = SQLDataType.BIGINT.asConvertedDataType(
       new Converter[java.lang.Long, Long] {
 
-        override def from(databaseObject: java.lang.Long): Long = databaseObject
+        override def from(databaseObject: java.lang.Long): Long = {
+          databaseObject
+        }
 
-        override def to(userObject: Long): java.lang.Long = userObject
+        override def to(userObject: Long): java.lang.Long = {
+          userObject
+        }
 
         override def fromType(): Class[java.lang.Long] = classOf[java.lang.Long]
 
