@@ -1,4 +1,4 @@
-package io.github.liewhite.sqlx.annotation
+package io.github.liewhite.sqlx
 
 // name in db
 case class ColumnName(name:String) extends scala.annotation.StaticAnnotation

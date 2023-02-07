@@ -15,7 +15,7 @@ import java.lang
 import java.time.Instant
 import java.time.ZoneId
 import java.math.BigInteger
-import io.github.liewhite.sqlx.annotation.Precision
+import io.github.liewhite.sqlx.Precision
 import scala.reflect.ClassTag
 import org.jooq.impl.DefaultDataType
 
@@ -261,6 +261,7 @@ object TField {
 
   // trick on option
   // jooq不支持子类型Convert
+  // jooq 内部通过class作为key来查找DataType, 注册Option会查找不到Some和None， 所以都注册一遍
   given opt[T](using t: TField[T]): TField[Option[T]] with {
     override def nullable: Boolean         = true
     def innerDataType: DataType[Option[T]] = {
@@ -349,5 +350,23 @@ object TField {
       // todo jooq 不支持子类型, 所以Some <: Option 这种就会找不到type
       result
     }
+  }
+
+  /** java 基本类型
+    */
+  given TField[Integer] with {
+    def innerDataType: DataType[Integer] = SQLDataType.INTEGER
+  }
+  given jlong: TField[java.lang.Long] with {
+    def innerDataType: DataType[java.lang.Long] = SQLDataType.BIGINT
+  }
+  given jbool: TField[java.lang.Boolean] with {
+    def innerDataType: DataType[java.lang.Boolean] = SQLDataType.BOOLEAN
+  }
+  given jfloat: TField[java.lang.Float] with {
+    def innerDataType: DataType[java.lang.Float] = SQLDataType.REAL
+  }
+  given jdouble: TField[java.lang.Double] with {
+    def innerDataType: DataType[java.lang.Double] = SQLDataType.FLOAT
   }
 }

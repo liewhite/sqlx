@@ -2,8 +2,6 @@ package io.github.liewhite.sqlx.examples
 
 import zio.*
 import zio.json.*
-import io.github.liewhite.sqlx.annotation.*
-// import com.zaxxer.hikari.HikariDataSource
 import io.github.liewhite.sqlx.{Table}
 import java.sql.SQLException
 import scala.util.Try
@@ -16,6 +14,7 @@ import org.jooq.impl.SQLDataType
 import org.jooq.Converter
 import org.jooq.util.mysql.MySQLDataType
 
+import io.github.liewhite.sqlx.{ColumnName, TableName, Primary, Length}
 case class Detail(email: String) derives JsonEncoder, JsonDecoder
 
 object Detail {
@@ -43,8 +42,7 @@ case class User(
     @Primary
     id: Long,
 
-    name: String = "default name",
-    age: Int = 0,
+    age: Option[Long],
 
     @ColumnName("details")
     @Length(100)

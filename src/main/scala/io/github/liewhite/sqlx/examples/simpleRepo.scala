@@ -2,7 +2,6 @@ package io.github.liewhite.sqlx.examples
 
 import scala.jdk.CollectionConverters.*
 import zio.*
-import io.github.liewhite.sqlx.annotation.*
 import io.github.liewhite.sqlx.*
 import org.jooq.DSLContext
 import org.jooq.impl.DefaultDSLContext
@@ -15,19 +14,22 @@ import io.github.liewhite.sqlx.Migration
 import org.jooq.impl.DefaultDataType
 import org.jooq.impl.SQLDataType
 import org.jooq.impl.DSL
+import org.jooq.Record2
 
 object MyApp extends ZIOAppDefault {
   def run = {
     val config = DBConfig("mysql", "localhost", "root", "test")
 
     val q = Table[User]
-    val sss = DSL.`val`(Some(123), summon[TField[Option[Int]]].dataType)
+    val tp = summon[FromRecord[(Option[Long], Detail)]]
 
     (for {
       migResult <- Migration.Migrate[User]
       ctx <- ZIO.service[org.jooq.DSLContext]
       _ <- ZIO.attempt{
-        println(ctx.insertInto(q.table).columns(q.field_name, q.field_detail).values("xxx",Detail("xxxx")).execute())
+        println(ctx.insertInto(q.table).columns(q.field_age, q.field_detail).values(None,Detail("xxxx")).execute())
+        val result = ctx.select(q.field_age,q.field_detail).from(q.table).fetch().as[(Option[Long], Detail)]
+        println(result)
       }
     } yield ()).provide(
       ZLayer.succeed(config),

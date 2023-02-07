@@ -8,7 +8,6 @@ import scala.jdk.CollectionConverters.*
 import shapeless3.deriving.{K0, Continue, Labelling}
 import io.github.liewhite.common.SummonUtils.summonAll
 import io.github.liewhite.common.{RepeatableAnnotation, RepeatableAnnotations}
-import io.github.liewhite.sqlx.annotation
 import io.github.liewhite.common.DefaultValue
 
 import org.jooq
@@ -17,10 +16,11 @@ import org.jooq.impl.DSL.*
 import zio.ZIO
 import org.jooq.DSLContext
 
+import io.github.liewhite.sqlx.{Length, Unique, ColumnName, Precision, Primary, TableName, Index}
 class DriverNotSupportError(driver: String)
     extends Exception(s"driver not support: $driver")
 
-case class Index(
+case class Idx(
     name: String,
     cols: Vector[String],
     unique: Boolean) {
@@ -36,7 +36,7 @@ case class Index(
 trait Table[T <: Product: Mirror.ProductOf] extends Selectable {
   def tableName: String
   def table: jooq.Table[org.jooq.Record] = jooq.impl.DSL.table(tableName)
-  def indexes: Vector[Index]
+  def indexes: Vector[Idx]
   def columns: Vector[Field[_]]
 
   def pk: Option[Field[_]] = columns.find(_.primaryKey)
@@ -63,14 +63,14 @@ object Table {
   inline given derived[A <: Product](using
       gen: Mirror.ProductOf[A],
       labelling: Labelling[A],
-      primary: RepeatableAnnotations[annotation.Primary, A],
-      index: RepeatableAnnotations[annotation.Index, A],
-      unique: RepeatableAnnotations[annotation.Unique, A],
-      length: RepeatableAnnotations[annotation.Length, A],
-      precision: RepeatableAnnotations[annotation.Precision, A],
+      primary: RepeatableAnnotations[Primary, A],
+      index: RepeatableAnnotations[Index, A],
+      unique: RepeatableAnnotations[Unique, A],
+      length: RepeatableAnnotations[Length, A],
+      precision: RepeatableAnnotations[Precision, A],
       defaultValue: DefaultValue[A],
-      renamesAnn: RepeatableAnnotations[annotation.ColumnName, A],
-      tableNameAnn: RepeatableAnnotation[annotation.TableName, A],
+      renamesAnn: RepeatableAnnotations[ColumnName, A],
+      tableNameAnn: RepeatableAnnotation[TableName, A],
   ): Table[A] = {
     val defaults        = defaultValue.defaults
     val columnTypes     = summonAll[TField, gen.MirroredElemTypes]
@@ -132,7 +132,7 @@ object Table {
       .groupBy(item => item._1.name)
       .map {
         case (name, items) => {
-          Index(name, items.map(_._2).toVector, items(0)._1.unique)
+          Idx(name, items.map(_._2).toVector, items(0)._1.unique)
         }
       }
       .toVector
