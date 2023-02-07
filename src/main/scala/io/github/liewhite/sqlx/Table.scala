@@ -68,6 +68,7 @@ object Table {
       index: RepeatableAnnotations[annotation.Index, A],
       unique: RepeatableAnnotations[annotation.Unique, A],
       length: RepeatableAnnotations[annotation.Length, A],
+      precision: RepeatableAnnotations[annotation.Precision, A],
       defaultValue: DefaultValue[A],
       renamesAnn: RepeatableAnnotations[annotation.ColumnName, A],
       tableNameAnn: RepeatableAnnotation[annotation.TableName, A],
@@ -119,7 +120,9 @@ object Table {
 
     val uniques = unique().map(item => if (item.isEmpty) false else true)
 
-    val len = length().map(item => if (item.isEmpty) None else Some(item(0).l))
+    val len  = length().map(item => if (item.isEmpty) None else Some(item(0).l))
+    val prec =
+      precision().map(item => if (item.isEmpty) None else Some(item(0)))
 
     val idxes = index().zipWithIndex
       .filter(!_._1.isEmpty)
@@ -144,11 +147,12 @@ object Table {
 
     val cols = scalaFieldNames.zipWithIndex.map {
       case (name, index) => {
-        val tp      = columnTypes(index)
-        val unique  = uniques(index)
-        val default = defaults.get(name)
-        val typeLen = len(index)
-        val pk      = isPrimaryKey(index)
+        val tp       = columnTypes(index)
+        val unique   = uniques(index)
+        val default  = defaults.get(name)
+        val typeLen  = len(index)
+        val typePrec = prec(index)
+        val pk       = isPrimaryKey(index)
 
         Field(
           index,
@@ -159,6 +163,7 @@ object Table {
           unique,
           default,
           typeLen,
+          typePrec,
           tp
         )
       }
@@ -175,6 +180,7 @@ object Table {
     }
     result
   }
+
   transparent inline def apply[T <: Product] = {
     ${ queryImpl[T] }
   }
@@ -189,7 +195,11 @@ object Table {
             case '[head *: tail] => {
               val label     = Type.valueOfConstant[mel].get.toString
               val withField =
-                Refinement(baseType, "field_" + label, TypeRepr.of[jooq.Field[head]])
+                Refinement(
+                  baseType,
+                  "field_" + label,
+                  TypeRepr.of[jooq.Field[head]]
+                )
               recur[melTail, tail](withField)
             }
           }

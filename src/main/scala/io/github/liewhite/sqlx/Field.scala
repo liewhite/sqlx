@@ -15,6 +15,7 @@ import java.lang
 import java.time.Instant
 import java.time.ZoneId
 import java.math.BigInteger
+import io.github.liewhite.sqlx.annotation.Precision
 
 case class Field[T](
     index: Int,
@@ -27,6 +28,7 @@ case class Field[T](
     unique: Boolean,
     default: Option[Any],
     length: Option[Int],
+    precision: Option[Precision],
     t: TField[T]) {
   def field: jooq.Field[Object] = {
     jooq.impl.DSL.field(fullColName)
@@ -49,9 +51,13 @@ case class Field[T](
         datatype = datatype.defaultValue(default.get.asInstanceOf[Any])
       }
     }
-    if (length.isDefined) {
-      datatype = datatype.length(length.get)
-    }
+    length.foreach(l => {
+      datatype = datatype.length(l)
+    })
+    precision.foreach(p => {
+      datatype = datatype.precision(p.precision,p.scale)
+    })
+
     datatype
   }
 }

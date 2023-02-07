@@ -14,3 +14,4 @@ case class Index(name:String, unique:Boolean = false, priority:Int=0) extends sc
 // unique constraint
 case class Unique() extends scala.annotation.StaticAnnotation
 case class Length(l: Int) extends scala.annotation.StaticAnnotation
+case class Precision(precision: Int,scale: Int) extends scala.annotation.StaticAnnotation
