@@ -34,7 +34,6 @@ case class Index(
 // 然后将diff apply 到db
 // 再从database meta 恢复出table,用作后续jooq的操作
 trait Table[T <: Product: Mirror.ProductOf] extends Selectable {
-  def driver: String
   def tableName: String
   def table: jooq.Table[org.jooq.Record] = jooq.impl.DSL.table(tableName)
   def indexes: Vector[Index]
@@ -72,17 +71,10 @@ object Table {
       defaultValue: DefaultValue[A],
       renamesAnn: RepeatableAnnotations[annotation.ColumnName, A],
       tableNameAnn: RepeatableAnnotation[annotation.TableName, A],
-      driverAnn: RepeatableAnnotation[annotation.Driver, A]
   ): Table[A] = {
     val defaults        = defaultValue.defaults
     val columnTypes     = summonAll[TField, gen.MirroredElemTypes]
     val customTableName = tableNameAnn()
-    val customDriverAnn = driverAnn()
-    val customDriver    = if (customDriverAnn.isEmpty) {
-      "mysql"
-    } else {
-      customDriverAnn.head.name
-    }
 
     val tName = if (customTableName.isEmpty) {
       labelling.label
@@ -170,8 +162,6 @@ object Table {
     }
 
     val result = new Table[A] {
-
-      def driver: String = customDriver
 
       def tableName = tName
 

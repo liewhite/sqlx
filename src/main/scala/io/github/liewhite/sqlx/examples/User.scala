@@ -14,15 +14,17 @@ import io.github.liewhite.sqlx.TField
 import org.jooq.DataType
 import org.jooq.impl.SQLDataType
 import org.jooq.Converter
+import org.jooq.util.mysql.MySQLDataType
 
-case class Detail(email:String) derives JsonEncoder, JsonDecoder
+case class Detail(email: String) derives JsonEncoder, JsonDecoder
 
 object Detail {
-    given TField[Detail] with {
-      override def dataType: DataType[Detail] = SQLDataType.CLOB.asConvertedDataType(new Converter[String,Detail]{
+  given TField[Detail] with {
+    def innerDataType: DataType[Detail] =
+      SQLDataType.VARCHAR.asConvertedDataType(new Converter[String, Detail] {
 
         override def from(databaseObject: String): Detail = {
-            databaseObject.fromJson[Detail].toOption.get
+          databaseObject.fromJson[Detail].toOption.get
         }
 
         override def to(userObject: Detail): String = userObject.toJson
@@ -31,16 +33,33 @@ object Detail {
 
         override def toType(): Class[Detail] = classOf[Detail]
 
-      } )
-    }
+      })
+  }
 }
 @TableName("user1")
 case class User(
     @Primary
     id: Long,
 
-    detail: Detail,
+    age: Option[String],
+    age2: Option[String],
+    age3: Option[String],
+    age4: Option[String],
+    age5: String,
+    age6: String,
+    age7: String,
+    age8: String,
+    age9: String,
+    age10: String,
+    xxx: Option[Int],
+
+    @Precision(65, 10)
+    p: BigDecimal,
 
     @ColumnName("nick_name")
-    name: String)
+    @Length(100)
+    name: String,
 
+    @ColumnName("details")
+    @Length(100)
+    detail: Detail)

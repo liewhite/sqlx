@@ -41,19 +41,22 @@ case class Field[T](
   }
 
   def uniqueKeyName: String      = "uk:" + colName
+
   def getDataType: DataType[Any] = {
     var datatype = t.dataType.asInstanceOf[DataType[Any]]
     if (primaryKey) {
       datatype = datatype.nullable(false).identity(true)
     } else {
-      datatype = datatype.nullable(false)
       if (default.isDefined) {
-        datatype = datatype.defaultValue(default.get.asInstanceOf[Any])
+        val dv = t.dataType.getConverter().to(default.get.asInstanceOf)
+        datatype = datatype.defaultValue(dv)
       }
     }
+
     length.foreach(l => {
       datatype = datatype.length(l)
     })
+
     precision.foreach(p => {
       datatype = datatype.precision(p.precision,p.scale)
     })
@@ -66,17 +69,22 @@ trait TField[T] {
   // option type with true
   def nullable: Boolean = false
   // jooq datatype
-  def dataType: DataType[T]
+  def dataType: DataType[T] = innerDataType.nullable(nullable)
+  def innerDataType: DataType[T]
 }
 
 object TField {
   given [T](using t: TField[T]): TField[Option[T]] with {
     override def nullable: Boolean = true
-    def dataType: DataType[Option[T]] = t.dataType.nullable(true).asInstanceOf
+    def innerDataType: DataType[Option[T]] = {
+      val tp = t.dataType.nullable(true)
+      tp.asInstanceOf[DataType[Option[T]]]
+    }
+
   }
 
   given TField[Int] with {
-    def dataType: DataType[Int] = SQLDataType.INTEGER.asConvertedDataType(new Converter[Integer, Int]{
+    def innerDataType: DataType[Int] = SQLDataType.INTEGER.asConvertedDataType(new Converter[Integer, Int]{
 
       override def from(databaseObject: Integer): Int = databaseObject
 
@@ -90,7 +98,7 @@ object TField {
   }
 
   given TField[Long] with  {
-    def dataType: DataType[Long] = SQLDataType.BIGINT.asConvertedDataType(new Converter[java.lang.Long, Long]{
+    def innerDataType: DataType[Long] = SQLDataType.BIGINT.asConvertedDataType(new Converter[java.lang.Long, Long]{
 
       override def from(databaseObject: java.lang.Long): Long = databaseObject
 
@@ -104,7 +112,7 @@ object TField {
   }
 
   given TField[Float] with {
-    def dataType: DataType[Float] = SQLDataType.REAL.asConvertedDataType(new Converter[java.lang.Float, Float]{
+    def innerDataType: DataType[Float] = SQLDataType.REAL.asConvertedDataType(new Converter[java.lang.Float, Float]{
 
       override def from(databaseObject: java.lang.Float): Float = databaseObject
 
@@ -118,7 +126,7 @@ object TField {
   }
 
   given TField[Double] with {
-    def dataType: DataType[Double] = SQLDataType.FLOAT.asConvertedDataType(new Converter[java.lang.Double, Double]{
+    def innerDataType: DataType[Double] = SQLDataType.FLOAT.asConvertedDataType(new Converter[java.lang.Double, Double]{
 
       override def from(databaseObject: java.lang.Double): Double = databaseObject
 
@@ -132,21 +140,11 @@ object TField {
   }
 
   given TField[String] with {
-    def dataType: DataType[String] = SQLDataType.VARCHAR.asConvertedDataType(new Converter[java.lang.String, String]{
-
-      override def from(databaseObject: java.lang.String): String = databaseObject
-
-      override def to(userObject: String): java.lang.String = userObject
-
-      override def fromType(): Class[java.lang.String] = classOf[java.lang.String]
-
-      override def toType(): Class[String] = classOf[String]
-
-    })
+    def innerDataType: DataType[String] = SQLDataType.VARCHAR(255)
   }
 
   given TField[Boolean] with {
-    def dataType: DataType[Boolean] = SQLDataType.BOOLEAN.asConvertedDataType(new Converter[java.lang.Boolean, Boolean] {
+    def innerDataType: DataType[Boolean] = SQLDataType.BOOLEAN.asConvertedDataType(new Converter[java.lang.Boolean, Boolean] {
 
       override def from(databaseObject: lang.Boolean): Boolean = {
         databaseObject
@@ -164,7 +162,7 @@ object TField {
   }
 
   given TField[BigInt] with {
-    def dataType: DataType[BigInt] = SQLDataType.DECIMAL_INTEGER(65).asConvertedDataType(new Converter[java.math.BigInteger, BigInt] {
+    def innerDataType: DataType[BigInt] = SQLDataType.DECIMAL_INTEGER(65).asConvertedDataType(new Converter[java.math.BigInteger, BigInt] {
 
       override def from(databaseObject: BigInteger): BigInt = databaseObject
 
@@ -178,7 +176,7 @@ object TField {
   }
 
   given TField[BigDecimal] with {
-    def dataType: DataType[BigDecimal] = SQLDataType.NUMERIC(65,10).asConvertedDataType(new Converter[java.math.BigDecimal, BigDecimal] {
+    def innerDataType: DataType[BigDecimal] = SQLDataType.NUMERIC(65,10).asConvertedDataType(new Converter[java.math.BigDecimal, BigDecimal] {
 
       override def from(databaseObject: java.math.BigDecimal): BigDecimal = {
         databaseObject
@@ -195,7 +193,7 @@ object TField {
   }
 
   given TField[ZonedDateTime] with {
-    def dataType: DataType[ZonedDateTime] = SQLDataType.BIGINT.asConvertedDataType(new Converter[java.lang.Long, ZonedDateTime] {
+    def innerDataType: DataType[ZonedDateTime] = SQLDataType.BIGINT.asConvertedDataType(new Converter[java.lang.Long, ZonedDateTime] {
 
       override def from(databaseObject: lang.Long): ZonedDateTime = {
         ZonedDateTime.ofInstant(Instant.ofEpochMilli(databaseObject), ZoneId.systemDefault())
@@ -213,7 +211,7 @@ object TField {
   }
 
   given TField[ju.Date] with        {
-    def dataType: DataType[ju.Date] = SQLDataType.BIGINT.asConvertedDataType(new Converter[java.lang.Long, ju.Date] {
+    def innerDataType: DataType[ju.Date] = SQLDataType.BIGINT.asConvertedDataType(new Converter[java.lang.Long, ju.Date] {
 
       override def from(databaseObject: lang.Long): ju.Date = {
         ju.Date.from(Instant.ofEpochMilli(databaseObject))
@@ -232,7 +230,7 @@ object TField {
   }
 
   given TField[Array[Byte]] with {
-    def dataType: DataType[Array[Byte]] = SQLDataType.BLOB
+    def innerDataType: DataType[Array[Byte]] = SQLDataType.BLOB
   }
 
 }

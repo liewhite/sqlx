@@ -106,11 +106,14 @@ object Migration {
                     .execute
                 } else {
                   if (col.t.nullable) {
-                    jooqConn
-                      .alterTable(current)
-                      .alter(col.colName)
-                      .dropDefault()
-                      .execute
+                    // TEXT等类型无法set default
+                    Try {
+                      jooqConn
+                        .alterTable(current)
+                        .alter(col.colName)
+                        .dropDefault()
+                        .execute
+                    }
                   } else {
                     Unsafe.unsafe { implicit unsafe =>
                       {
@@ -201,10 +204,10 @@ object Migration {
               jooqTable: jooq.Table[_],
               col: Field[_]
             ) = {
-            jooqConn
+            val stm = jooqConn
               .alterTable(jooqTable)
               .addColumn(col.colName, col.getDataType)
-              .execute
+            stm.execute
           }
         })
       }
