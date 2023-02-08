@@ -16,7 +16,15 @@ import org.jooq.impl.DSL.*
 import zio.ZIO
 import org.jooq.DSLContext
 
-import io.github.liewhite.sqlx.{Length, Unique, ColumnName, Precision, Primary, TableName, Index}
+import io.github.liewhite.sqlx.{
+  Length,
+  Unique,
+  ColumnName,
+  Precision,
+  Primary,
+  TableName,
+  Index
+}
 class DriverNotSupportError(driver: String)
     extends Exception(s"driver not support: $driver")
 
@@ -44,6 +52,8 @@ trait Table[T <: Product: Mirror.ProductOf] extends Selectable {
   def jooqCols: Vector[org.jooq.Field[Object]] =
     columns.map(item => field(item.colName))
 
+  def fields: Vector[org.jooq.Field[Object]] = jooqCols
+
   def colMap: Map[String, Field[_]] =
     columns.map(item => (item.fieldName, item)).toMap
 
@@ -70,7 +80,7 @@ object Table {
       precision: RepeatableAnnotations[Precision, A],
       defaultValue: DefaultValue[A],
       renamesAnn: RepeatableAnnotations[ColumnName, A],
-      tableNameAnn: RepeatableAnnotation[TableName, A],
+      tableNameAnn: RepeatableAnnotation[TableName, A]
   ): Table[A] = {
     val defaults        = defaultValue.defaults
     val columnTypes     = summonAll[TField, gen.MirroredElemTypes]
