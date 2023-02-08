@@ -16,6 +16,7 @@ import org.jooq.impl.SQLDataType
 import org.jooq.impl.DSL
 import org.jooq.Record2
 
+import io.github.liewhite.sqlx.as
 case class OK(
   a: Option[Long],
   b: Detail
@@ -29,8 +30,9 @@ object MyApp extends ZIOAppDefault {
     (for {
       migResult <- Migration.Migrate[User]
       ctx <- ZIO.service[org.jooq.DSLContext]
+      user <- User(0,Some(123), Detail("jqk")).toRecord
       _ <- ZIO.attempt{
-        // println(ctx.insertInto(q.table).columns(q.field_age, q.field_detail).values(None,Detail("xxxx")).execute())
+        ctx.insertInto(q.table).columns(q.jooqCols*).valuesOfRecords(Vector(user,user,user)*).execute()
         val result = ctx.select(q.field_age,q.field_detail).from(q.table).fetch()
         println(result.as[OK])
         println(result.as[(Option[Long], Detail)])
