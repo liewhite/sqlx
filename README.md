@@ -1,5 +1,6 @@
 # TODO
-[ ] 解析返回值 
+[x] 解析返回值 
+[ ] 自动分表 
 
 # Combined of query and migration tool
 # Known issues
@@ -11,4 +12,5 @@ null.asInstanceOf[Int] == 0
 > 解决办法， 尽量不使用Option， 可以使用默认值代替使得migrate时不报错
 > 虽然无法把非null值改回null ， 但是可以在插入时就故意缺失该字段， 则会自动为null
 > 或者定义为java.math.Integer
+
 

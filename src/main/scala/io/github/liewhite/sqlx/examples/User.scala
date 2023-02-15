@@ -14,7 +14,8 @@ import org.jooq.impl.SQLDataType
 import org.jooq.Converter
 import org.jooq.util.mysql.MySQLDataType
 
-import io.github.liewhite.sqlx.{ColumnName, TableName, Primary, Length}
+import io.github.liewhite.sqlx.*
+
 case class Detail(email: String) derives JsonEncoder, JsonDecoder
 
 object Detail {
@@ -37,12 +38,16 @@ object Detail {
       })
   }
 }
-@TableName("user1")
+@TableName("split_user")
+@SplitTable(5)
 case class User(
     @Primary
     id: Long,
 
     age: Option[Long],
+
+    @Index("kakak")
+    kakaka: String,
 
     @ColumnName("details")
     @Length(100)

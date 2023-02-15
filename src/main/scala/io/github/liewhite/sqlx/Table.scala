@@ -42,10 +42,35 @@ case class Idx(
 // 然后将diff apply 到db
 // 再从database meta 恢复出table,用作后续jooq的操作
 trait Table[T <: Product: Mirror.ProductOf] extends Selectable {
+  self =>
   def tableName: String
-  def table: jooq.Table[org.jooq.Record] = jooq.impl.DSL.table(tableName)
+  def splitCount: Option[Int]
   def indexes: Vector[Idx]
   def columns: Vector[Field[_]]
+
+  def table: jooq.Table[org.jooq.Record] = jooq.impl.DSL.table(tableName)
+
+  def splitWith(key: Long): self.type = {
+    (new Table[T] {
+      def tableName: String = {
+        val split = self.splitCount.get
+        val rawName = self.tableName
+        s"${rawName}_${key % split}"
+      }
+
+      def splitCount: Option[Int] = self.splitCount
+
+      override def indexes: Vector[Idx] = ???
+
+      def columns: Vector[Field[?]] = self.columns.map(f => {
+        f.copy(modelName = tableName)
+      })
+
+      override def selectDynamic(name: String): Any   = {
+        colMap(name.stripPrefix("field_")).field
+      }
+    }).asInstanceOf[self.type]
+  }
 
   def pk: Option[Field[_]] = columns.find(_.primaryKey)
 
@@ -80,11 +105,15 @@ object Table {
       precision: RepeatableAnnotations[Precision, A],
       defaultValue: DefaultValue[A],
       renamesAnn: RepeatableAnnotations[ColumnName, A],
-      tableNameAnn: RepeatableAnnotation[TableName, A]
+      tableNameAnn: RepeatableAnnotation[TableName, A],
+      splitAnn: RepeatableAnnotation[SplitTable, A]
   ): Table[A] = {
     val defaults        = defaultValue.defaults
     val columnTypes     = summonAll[TField, gen.MirroredElemTypes]
     val customTableName = tableNameAnn()
+    val split           = splitAnn()
+    val splitTo         = if (split.nonEmpty) { Some(split.head.splitTo) }
+    else None
 
     val tName = if (customTableName.isEmpty) {
       labelling.label
@@ -172,6 +201,7 @@ object Table {
     }
 
     val result = new Table[A] {
+      def splitCount: Option[Int] = splitTo
 
       def tableName = tName
 
@@ -224,4 +254,11 @@ object Table {
       case e => report.error(e.show); ???
     }
   }
+}
+
+def getTable[T <: Product: Table](key: Long): jooq.Table[org.jooq.Record] = {
+  val t     = summon[Table[T]]
+  val split = t.splitCount.get
+  val table = jooq.impl.DSL.table(s"${t.tableName}_${key % split}")
+  table
 }
